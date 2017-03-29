@@ -36,6 +36,7 @@ class MigrationServiceProvider extends ServiceProvider
     {
         $this->app->singleton(MigrationManagerContract::class, function ($app) {
             $migrationManager = new MigrationManager();
+            $migrationManager->setDatabaseConnection(config('migrations.database_connection'));
             foreach (config('migrations.migrations', []) as $name => $class) {
                 $migrationManager->addMigration($name, $class);
             }

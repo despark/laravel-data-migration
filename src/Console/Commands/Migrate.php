@@ -18,7 +18,7 @@ class Migrate extends Command
      *
      * @var string
      */
-    protected $signature = 'migrations:migrate {--m|migration=*}';
+    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} {values* : any custom data to pass to the migration "key=value"}';
 
     /**
      * The console command description.
@@ -28,6 +28,9 @@ class Migrate extends Command
     protected $description = 'Migrate data form old providers';
 
 
+    /**
+     * @var MigrationManagerContract
+     */
     protected $manager;
 
     /**
@@ -54,19 +57,20 @@ class Migrate extends Command
         $migrationsData = $migrationName ? $this->manager->findMigrationByName($migrationName) : $this->manager->getMigrations();
 
         // Normalize to array.
-        if (! is_array($migrationsData)) {
+        if ( ! is_array($migrationsData)) {
             $migrationsData = [$migrationsData];
         }
 
-        if (! $count = count($migrationsData)) {
+        if ( ! $count = count($migrationsData)) {
             $this->warn('No migration(s) found');
 
             return false;
         }
 
+        $this->addCustomValues();
+
         foreach ($migrationsData as $name => $migrationClass) {
             $migrationInstance = $this->manager->getMigrationInstance($name);
-
 
             $this->info(PHP_EOL.
                 '***'.PHP_EOL.
@@ -94,5 +98,18 @@ class Migrate extends Command
         $this->info("\n".'Migration successful!');
 
         return true;
+    }
+
+    /**
+     * Adds custom arguments to the manager
+     */
+    protected function addCustomValues()
+    {
+        foreach ($this->argument('values') as $argument) {
+            if (strstr($argument, '=') !== false) {
+                list($key, $value) = explode('=', $argument);
+                $this->manager->addGlobalValue($key, $value);
+            }
+        }
     }
 }

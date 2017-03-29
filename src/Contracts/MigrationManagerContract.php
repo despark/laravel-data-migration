@@ -60,4 +60,20 @@ interface MigrationManagerContract
      */
     public function getGlobalValue($key, $default = null);
 
+    /**
+     * @return mixed
+     */
+    public function getGlobalValues();
+
+    /**
+     * @param string $databaseConnection
+     * @return MigrationManagerContract
+     */
+    public function setDatabaseConnection(string $databaseConnection): MigrationManagerContract;
+
+    /**
+     * @return string
+     */
+    public function getDatabaseConnection(): string;
+
 }

@@ -28,14 +28,19 @@ class MigrationManager implements MigrationManagerContract
      */
     protected $values;
 
+    /**
+     * @var string
+     */
+    protected $databaseConnection;
+
 
     /**
      * @param $name
      * @param $class
-     * @return void
+     * @return MigrationManagerContract
      * @throws \Exception
      */
-    public function addMigration($name, $class)
+    public function addMigration($name, $class): MigrationManagerContract
     {
         if (! class_exists($class)) {
             throw new \Exception('Migration class '.$class.' not found');
@@ -47,6 +52,8 @@ class MigrationManager implements MigrationManagerContract
         }
 
         $this->migrations[$name] = $class;
+
+        return $this;
     }
 
     /**
@@ -167,6 +174,7 @@ class MigrationManager implements MigrationManagerContract
     /**
      * @param $key
      * @param $value
+     * @return mixed|void
      */
     public function addGlobalValue($key, $value)
     {
@@ -182,4 +190,33 @@ class MigrationManager implements MigrationManagerContract
     {
         return isset($this->values[$key]) ? $this->values[$key] : $default;
     }
+
+    /**
+     * @return mixed
+     */
+    public function getGlobalValues()
+    {
+        return $this->values;
+    }
+
+    /**
+     * @return string
+     */
+    public function getDatabaseConnection(): string
+    {
+        return $this->databaseConnection;
+    }
+
+    /**
+     * @param string $databaseConnection
+     * @return MigrationManagerContract
+     */
+    public function setDatabaseConnection(string $databaseConnection): MigrationManagerContract
+    {
+        $this->databaseConnection = $databaseConnection;
+
+        return $this;
+    }
+
+
 }

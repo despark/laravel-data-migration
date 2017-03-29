@@ -247,8 +247,6 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             throw new MigrationException('You must specify old primary id.');
         }
 
-        $this->oldDbConnection = config('vercida.migrations.old_db_connection_name');
-
         $this->origMap = $this->map;
 
         $this->setMaxChunks();
@@ -654,7 +652,28 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     }
 
     /**
+     * @return string
+     */
+    public function getOldDbConnection(): string
+    {
+        if (! isset($this->oldDbConnection)) {
+            $this->oldDbConnection = $this->manager->getDatabaseConnection();
+        }
+
+        return $this->oldDbConnection;
+    }
+
+    /**
+     * @param string $oldDbConnection
+     */
+    public function setOldDbConnection(string $oldDbConnection)
+    {
+        $this->oldDbConnection = $oldDbConnection;
+    }
+
+    /**
      * @param $constraint
+     * @return array
      */
     protected function getConstrainedRelation($constraint)
     {
@@ -669,6 +688,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * @param $data
+     * @throws MigrationException
      */
     protected function buildRelations($data)
     {
@@ -783,6 +803,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getRecordsCount(): int
     {
+        $this->applyConstraints();
+
         return $this->getReadQuery()->count();
     }
 
@@ -797,7 +819,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             $table = $this->oldTable;
         }
 
-        return DB::connection($this->oldDbConnection)->table($table);
+        return DB::connection($this->getOldDbConnection())->table($table);
     }
 
     /**
@@ -817,6 +839,9 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function applyConstraints()
     {
+        if (! $this->readQuery) {
+            $this->getReadQuery();
+        }
         $constraints = $this->manager->getGlobalConstraints();
 
         if (! empty($constraints)) {
@@ -965,7 +990,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function getOldColumns()
     {
-        $connection = DB::connection($this->oldDbConnection);
+        $connection = DB::connection($this->getOldDbConnection());
         $dbExists = DB::select('SELECT SCHEMA_NAME
             FROM INFORMATION_SCHEMA.SCHEMATA
             WHERE SCHEMA_NAME = ?', [
@@ -1167,7 +1192,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         $collection = collect($this->markedForReview);
 
         $oldTable = $this->oldTable.'_reviews';
-        $hasRemoteTable = Schema::connection($this->oldDbConnection)->hasTable($oldTable);
+        $hasRemoteTable = Schema::connection($this->getOldDbConnection())->hasTable($oldTable);
 
         $newTable = $this->newTable.'_reviews';
         $hasLocalTable = Schema::hasTable($newTable);
@@ -1192,7 +1217,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         }
 
         if ($hasRemote) {
-            Schema::connection($this->oldDbConnection)->create($oldTable, function (Blueprint $table) {
+            Schema::connection($this->getOldDbConnection())->create($oldTable, function (Blueprint $table) {
                 $table->increments('id');
                 $table->unsignedInteger('review_id');
                 $table->text('review_fields');
