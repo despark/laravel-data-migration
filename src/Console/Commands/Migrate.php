@@ -18,7 +18,7 @@ class Migrate extends Command
      *
      * @var string
      */
-    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} {values* : any custom data to pass to the migration "key=value"}';
+    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} {values?* : any custom data to pass to the migration "key=value"}';
 
     /**
      * The console command description.
