@@ -26,5 +26,5 @@ Then set the database name that should be used by the library trough `.env` file
 `MIGRATION_DATABASE_CONNECTION=your_database_name` key or by setting the database name directly in the published config 
 `config/migrations.php`.
 
-#Usage
+# Usage
 To be done...
