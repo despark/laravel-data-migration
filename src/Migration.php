@@ -534,7 +534,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         }
 
         $this->getProgressBar()->advance(count($insert));
-        
+
         // Eventually free some memory
         unset($insert);
     }
