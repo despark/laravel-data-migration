@@ -244,7 +244,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
         // Set default oldId.
         if (! $this->oldId) {
-            throw new MigrationException('You must specify old primary id.');
+            throw new MigrationException('You must specify old primary id in class '.get_class($this));
         }
 
         $this->origMap = $this->map;
@@ -396,6 +396,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 $table->unsignedInteger($this->localOldId)->nullable()->after($this->newId);
                 $table->index($this->localOldId);
             });
+            // Reset new columns as we have one new column.
+            $this->newColumns = null;
         }
     }
 
