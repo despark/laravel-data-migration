@@ -18,7 +18,7 @@ class Migrate extends Command
      *
      * @var string
      */
-    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} {values?* : any custom data to pass to the migration "key=value"}';
+    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} {values?* : any custom data to pass to the migration "key=value"} {--no-progress : No progress bar}';
 
     /**
      * The console command description.
@@ -52,16 +52,17 @@ class Migrate extends Command
     public function handle()
     {
         // Flush migration cache.
-        \Cache::tags([Migration::$cacheTag])->flush();
+        \Cache::tags([Migration::$cacheTag])
+              ->flush();
         $migrationName = $this->option('migration');
         $migrationsData = $migrationName ? $this->manager->findMigrationByName($migrationName) : $this->manager->getMigrations();
 
         // Normalize to array.
-        if ( ! is_array($migrationsData)) {
+        if (!is_array($migrationsData)) {
             $migrationsData = [$migrationsData];
         }
 
-        if ( ! $count = count($migrationsData)) {
+        if (!$count = count($migrationsData)) {
             $this->warn('No migration(s) found');
 
             return false;
@@ -72,30 +73,35 @@ class Migrate extends Command
         foreach ($migrationsData as $name => $migrationClass) {
             $migrationInstance = $this->manager->getMigrationInstance($name);
 
-            $this->info(PHP_EOL.
-                '***'.PHP_EOL.
-                '*** Starting migration of '.$name.PHP_EOL.
-                '***'.PHP_EOL
+            $this->info(PHP_EOL .
+                '***' . PHP_EOL .
+                '*** Starting migration of ' . $name . PHP_EOL .
+                '***' . PHP_EOL
             );
 
-            if ($migrationInstance instanceof UsesProgressBar) {
+            if ($migrationInstance instanceof UsesProgressBar && !$this->option('no-progress')) {
                 $innerProgress = $this->output->createProgressBar($migrationInstance->getRecordsCount());
                 $migrationInstance->setProgressBar($innerProgress);
+            } else {
+                if (property_exists($migrationInstance, 'withProgressBar')) {
+                    $migrationInstance->withProgressBar = false;
+                }
             }
 
             try {
                 $migrationInstance->migrate();
             } catch (\Exception $exc) {
-                throw new Exception('Migration failed: '.$migrationClass, 0, $exc);
+                throw new Exception('Migration failed: ' . $migrationClass, 0, $exc);
             }
             if ($migrationInstance instanceof UsesProgressBar) {
-                $migrationInstance->getProgressBar()->finish();
+                $migrationInstance->getProgressBar()
+                                  ->finish();
                 $this->info(PHP_EOL);
             }
 
         }
 
-        $this->info("\n".'Migration successful!');
+        $this->info("\n" . 'Migration successful!');
 
         return true;
     }

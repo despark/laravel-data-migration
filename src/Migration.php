@@ -226,6 +226,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected $insertIgnoreMode = false;
 
     /**
+     * @var bool
+     */
+    public $withProgressBar = true;
+
+    /**
      * @return Builder
      */
     abstract protected function readQuery();
@@ -246,8 +251,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         });
 
         // Set default oldId.
-        if ( ! $this->oldId) {
-            throw new MigrationException('You must specify old primary id in class '.get_class($this));
+        if (!$this->oldId) {
+            throw new MigrationException('You must specify old primary id in class ' . get_class($this));
         }
 
         $this->origMap = $this->map;
@@ -273,7 +278,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
             if (true !== $errors) {
                 $migration = $this->manager->findMigrationByClass(get_class($this));
-                echo PHP_EOL.'Map integrity check failed for '.key($migration).PHP_EOL;
+                echo PHP_EOL . 'Map integrity check failed for ' . key($migration) . PHP_EOL;
                 dd($errors);
             }
         }
@@ -341,7 +346,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function logFailed()
     {
-        if ( ! $this->strictMode && ! empty($this->failedRecords)) {
+        if (!$this->strictMode && !empty($this->failedRecords)) {
             $insertData = [];
             // Find current migration
             $migration = $this->manager->findMigrationByClass(get_class($this));
@@ -352,7 +357,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 $insertData[] = [
                     'migration'  => key($migration),
                     'item_id'    => $record->{$this->oldId},
-                    'item'       => json_encode((array) $record),
+                    'item'       => json_encode((array)$record),
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];
@@ -360,7 +365,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
             $chunks = array_chunk($insertData, 100);
             foreach ($chunks as $data) {
-                DB::table('failed_migrations')->insert($data);
+                DB::table('failed_migrations')
+                  ->insert($data);
             }
         }
     }
@@ -400,9 +406,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function prepareTable()
     {
-        if ($this->saveOldId && ! Schema::hasColumn($this->newTable, $this->localOldId)) {
+        if ($this->saveOldId && !Schema::hasColumn($this->newTable, $this->localOldId)) {
             Schema::table($this->newTable, function (Blueprint $table) {
-                $table->unsignedInteger($this->localOldId)->nullable()->after($this->newId);
+                $table->unsignedInteger($this->localOldId)
+                      ->nullable()
+                      ->after($this->newId);
                 $table->index($this->localOldId);
             });
             // Reset new columns as we have one new column.
@@ -467,7 +475,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
                     // Check if we have a default value for the new field, and if old value is null.
                     // If this is the case we set the default value.
-                    if ( ! empty($this->defaultValues)) {
+                    if (!empty($this->defaultValues)) {
                         if (isset($this->defaultValues[$newColumn]) && is_null($item->{$oldColumn})) {
                             $insert[$key][$newColumn] = $this->defaultValues[$newColumn];
                         }
@@ -481,8 +489,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                         $insert[$key][$relation['foreign']] = $this->findRelationKeyValue($item, $table, $relation);
                     } catch (MigrationException $exc) {
                         // If we are not in strict mode, log error and allow import without broken relations.
-                        if ( ! $this->strictMode) {
-                            if ( ! isset($this->failedRecords[$item->{$this->oldId}])) {
+                        if (!$this->strictMode) {
+                            if (!isset($this->failedRecords[$item->{$this->oldId}])) {
                                 $this->failedRecords[$item->{$this->oldId}] = $item;
                             }
                             unset($insert[$key]);
@@ -496,10 +504,10 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
             // Add timestamps if we need to.
             if ($this->timestamps) {
-                if ( ! isset($insert[$key]['created_at'])) {
+                if (!isset($insert[$key]['created_at'])) {
                     $insert[$key]['created_at'] = $now;
                 }
-                if ( ! isset($insert[$key]['updated_at'])) {
+                if (!isset($insert[$key]['updated_at'])) {
                     $insert[$key]['updated_at'] = $now;
                 }
             }
@@ -510,7 +518,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         if (empty($insert)) {
             return false;
         }
-        if ( ! $this->dryRun) {
+        if (!$this->dryRun) {
             // Before we insert
             $this->beforeInsert($insert, $data);
 
@@ -519,7 +527,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 $insertSize = $this->getArrayByteSize($insert) + 400; // We add 400 bytes buffer
 
                 if ($insertSize > $this->maxPacketSize) {
-                    $parts = (int) ceil($insertSize / $this->maxPacketSize);
+                    $parts = (int)ceil($insertSize / $this->maxPacketSize);
                     $chunks = floor(count($insert) / $parts);
                     $insertChunks = array_chunk($insert, $chunks, true);
                     foreach ($insertChunks as $ins) {
@@ -530,10 +538,10 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 }
             } catch (\Exception $exc) {
                 $message = 'Problem inserting migration data for '
-                    .key($this->manager->findMigrationByClass(get_class($this))).PHP_EOL.
+                    . key($this->manager->findMigrationByClass(get_class($this))) . PHP_EOL .
                     '. Error:';
 
-                throw new MigrationException($message.' '.$exc->getMessage());
+                throw new MigrationException($message . ' ' . $exc->getMessage());
             }
             // We trigger after insert method
             $this->afterInsert($insert, $data);
@@ -544,7 +552,10 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             var_dump($insert);
         }
 
-        $this->getProgressBar()->advance(count($insert));
+        if ($this->withProgressBar) {
+            $this->getProgressBar()
+                 ->advance(count($insert));
+        }
 
         // Eventually free some memory
         unset($insert);
@@ -582,8 +593,9 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         $oldId = $this->oldId;
         $localOldId = $this->localOldId;
 
-        if ( ! isset($this->idBeforeMigration)) {
-            $this->idBeforeMigration = $this->query()->max($this->newId);
+        if (!isset($this->idBeforeMigration)) {
+            $this->idBeforeMigration = $this->query()
+                                            ->max($this->newId);
         }
 
         // Key data by id
@@ -632,7 +644,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected function truncate()
     {
         $constraints = $this->manager->getGlobalConstraints();
-        if ( ! empty($constraints)) {
+        if (!empty($constraints)) {
             foreach ($constraints as $alias => $field) {
                 if ($field['table'] == $this->oldTable) {
                     // Delete only the constraint
@@ -647,11 +659,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             }
         }
         // Try local constraints
-        if ( ! empty($this->constraints)) {
+        if (!empty($this->constraints)) {
             foreach ($this->constraints as $constraint) {
                 $relation = $this->getConstrainedRelation($constraint);
                 if ($relation) {
-                    $query = $this->query()->where($relation['foreign'], '=', $constraint['value']);
+                    $query = $this->query()
+                                  ->where($relation['foreign'], '=', $constraint['value']);
                     $query->delete();
 
                     return;
@@ -667,7 +680,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getOldDbConnection(): string
     {
-        if ( ! isset($this->oldDbConnection)) {
+        if (!isset($this->oldDbConnection)) {
             $this->oldDbConnection = $this->manager->getDatabaseConnection();
         }
 
@@ -684,6 +697,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * @param $constraint
+     *
      * @return array
      */
     protected function getConstrainedRelation($constraint)
@@ -699,6 +713,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * @param $data
+     *
      * @throws MigrationException
      */
     protected function buildRelations($data)
@@ -732,9 +747,9 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                         $oldKey = $relation['old_key'];
                         $oldId = $this->oldId;
                         // Build array of of foreign keys.
-                        if ( ! array_key_exists($item->$oldId, $this->foundRelations) ||
-                            ! array_key_exists($table, $this->foundRelations[$item->$oldId]) ||
-                            ! array_key_exists($item->$oldKey, $this->foundRelations[$item->$oldId][$table])
+                        if (!array_key_exists($item->$oldId, $this->foundRelations) ||
+                            !array_key_exists($table, $this->foundRelations[$item->$oldId]) ||
+                            !array_key_exists($item->$oldKey, $this->foundRelations[$item->$oldId][$table])
                         ) {
                             $query = DB::table($table)
                                        ->where($oldForeign, '=', $item->$oldKey)
@@ -742,8 +757,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                             try {
                                 $value = $query->value($relation['key']);
                             } catch (\PDOException $exc) {
-                                throw new MigrationException('Missing migration for table '.$table.
-                                    ' or problem with the query. Error: '.$exc->getMessage());
+                                throw new MigrationException('Missing migration for table ' . $table .
+                                    ' or problem with the query. Error: ' . $exc->getMessage());
                             }
 
                             // We have null value in the old table.
@@ -793,7 +808,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         } elseif ($this->force) {
             return null;
         } else {
-            throw new MigrationException('Foreign key value cannot be found for item with ID: '.$item->$oldId.'. Review migration model '.get_class($this));
+            throw new MigrationException('Foreign key value cannot be found for item with ID: ' . $item->$oldId . '. Review migration model ' . get_class($this));
         }
     }
 
@@ -802,7 +817,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getReadQuery()
     {
-        if ( ! $this->readQuery) {
+        if (!$this->readQuery) {
             $this->readQuery = $this->readQuery();
         }
 
@@ -816,7 +831,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     {
         $this->applyConstraints();
 
-        return $this->getReadQuery()->count();
+        return $this->getReadQuery()
+                    ->count();
     }
 
     /**
@@ -826,11 +842,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function oldQuery($table = null)
     {
-        if ( ! $table) {
+        if (!$table) {
             $table = $this->oldTable;
         }
 
-        return DB::connection($this->getOldDbConnection())->table($table);
+        return DB::connection($this->getOldDbConnection())
+                 ->table($table);
     }
 
     /**
@@ -838,7 +855,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function query($table = null)
     {
-        if ( ! $table) {
+        if (!$table) {
             $table = $this->newTable;
         }
 
@@ -850,12 +867,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function applyConstraints()
     {
-        if ( ! $this->readQuery) {
+        if (!$this->readQuery) {
             $this->getReadQuery();
         }
         $constraints = $this->manager->getGlobalConstraints();
 
-        if ( ! empty($constraints)) {
+        if (!empty($constraints)) {
             foreach ($constraints as $alias => $field) {
                 // First check if we are not working on the current table and apply where, if it is.
                 if ($field['table'] == $this->oldTable) {
@@ -869,7 +886,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 $relationAlias = $this->getRelationAlias($field['table']);
                 $this->readQuery->join($field['table'], $alias, '=', $relationAlias);
                 $this->readQuery->where($alias, '=', $field['value']);
-                $this->readQuery->addSelect($relationAlias.' as '.$localConstraints['field']);
+                $this->readQuery->addSelect($relationAlias . ' as ' . $localConstraints['field']);
 
                 // Try to find local value of the constraint
                 $localId = DB::table($localConstraints['table'])
@@ -896,7 +913,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     {
         // Select only fields on main table.
         foreach ($this->getOldColumns() as $column) {
-            $this->readQuery->addSelect($this->oldTable.'.'.$column);
+            $this->readQuery->addSelect($this->oldTable . '.' . $column);
         }
     }
 
@@ -918,7 +935,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected function getRelationAlias($table)
     {
         if ($field = $this->getRelationField($table)) {
-            return $this->oldTable.'.'.$field;
+            return $this->oldTable . '.' . $field;
         }
     }
 
@@ -929,7 +946,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     {
         // Add new and old ids if we use it
         if ($this->saveOldId && $this->oldId && $this->localOldId) {
-            if ( ! array_key_exists($this->oldId, $this->map)) {
+            if (!array_key_exists($this->oldId, $this->map)) {
                 $this->map[$this->oldId] = $this->localOldId;
             }
         }
@@ -937,20 +954,20 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         // Add relations
         foreach ($this->newRelations as $table => $relations) {
             foreach ($relations as $relation) {
-                if ( ! array_key_exists($relation['old_key'], $this->map)) {
+                if (!array_key_exists($relation['old_key'], $this->map)) {
                     $this->map[$relation['old_key']] = $relation['foreign'];
                 }
             }
         }
 
         $columns = $this->getOldColumns();
-        $pattern = '/_'.$this->oldTable.'|'.$this->oldTable.'_/';
+        $pattern = '/_' . $this->oldTable . '|' . $this->oldTable . '_/';
         foreach ($columns as $column) {
             // We skip check for the id.
             if ($column == $this->oldId) {
                 continue;
             }
-            if ( ! array_key_exists($column, $this->map)) {
+            if (!array_key_exists($column, $this->map)) {
                 $this->map[$column] = preg_replace($pattern, '', $column);
             }
         }
@@ -962,7 +979,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected function prepareRelations()
     {
         foreach ($this->newRelations as $table => $relations) {
-            if ( ! is_int(key($relations))) {
+            if (!is_int(key($relations))) {
                 $this->newRelations[$table] = [$relations];
             }
         }
@@ -998,6 +1015,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * @param null $table
+     *
      * @return array
      */
     protected function getOldColumns($table = null)
@@ -1010,7 +1028,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             [$connection->getDatabaseName(),]
         );
 
-        if ( ! isset($this->oldColumns[$table]) && ! empty($dbExists)) {
+        if (!isset($this->oldColumns[$table]) && !empty($dbExists)) {
             $this->oldColumns[$table] = Schema::setConnection($connection)
                                               ->getColumnListing($table);
         }
@@ -1020,6 +1038,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * @param null $table
+     *
      * @return array
      */
     protected function getNewColumns($table = null)
@@ -1027,7 +1046,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         if (is_null($table)) {
             $table = $this->newTable;
         }
-        if ( ! isset($this->newColumns[$table])) {
+        if (!isset($this->newColumns[$table])) {
             $this->newColumns[$table] = Schema::getColumnListing($table);
         }
 
@@ -1042,7 +1061,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getOldIdAmbitious()
     {
-        return $this->oldTable.'.'.$this->oldId;
+        return $this->oldTable . '.' . $this->oldId;
     }
 
     /**
@@ -1063,7 +1082,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 continue;
             }
             $mapped = $this->map($old);
-            if ( ! in_array($mapped, $newColumns)) {
+            if (!in_array($mapped, $newColumns)) {
                 $errors[$old] = $new;
             } else {
                 // Remove it from array for performance gain
@@ -1116,7 +1135,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getDefaultDatabase()
     {
-        return Config::get('database.connections.'.Config::get('database.default').'.database');
+        return Config::get('database.connections.' . Config::get('database.default') . '.database');
     }
 
     /**
@@ -1124,11 +1143,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function setMaxChunks()
     {
-        $numColumns = DB::select('SELECT COUNT(*) AS col_count FROM INFORMATION_SCHEMA.COLUMNS '.
+        $numColumns = DB::select('SELECT COUNT(*) AS col_count FROM INFORMATION_SCHEMA.COLUMNS ' .
             'WHERE table_schema = ? AND table_name = ?',
             [$this->getDefaultDatabase(), $this->newTable])[0]->col_count;
-        if ( ! $numColumns) {
-            throw new MigrationException('No columns for table '.$this->newTable);
+        if (!$numColumns) {
+            throw new MigrationException('No columns for table ' . $this->newTable);
         }
         $this->chunks = floor($this->maxPlaceholders / $numColumns);
     }
@@ -1138,11 +1157,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function log($data)
     {
-        if ( ! $this->logger) {
+        if (!$this->logger) {
             $this->logger = new Logger('Migration logger');
             $this->logger->pushHandler(new StreamHandler(storage_path('logs/migrations.log')));
         }
-        if ( ! is_string($data) || ! is_int($data)) {
+        if (!is_string($data) || !is_int($data)) {
             $dump = var_export($data, true);
         } else {
             $dump = $data;
@@ -1158,9 +1177,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function cache($item, callable $callback)
     {
-        if ( ! $value = \Cache::tags([self::$cacheTag])->get($item)) {
+        if (!$value = \Cache::tags([self::$cacheTag])
+                            ->get($item)
+        ) {
             $value = call_user_func($callback, $this);
-            \Cache::tags([self::$cacheTag])->put($item, $value, 1);
+            \Cache::tags([self::$cacheTag])
+                  ->put($item, $value, 1);
         }
 
         return $value;
@@ -1184,14 +1206,14 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     /**
      * Create table for items for review.
      *
-     * @param int          $recordId Old table record id
+     * @param int $recordId Old table record id
      * @param array|string $fieldsForReview Fields that need to be reviewed
-     * @param bool         $local
-     * @param string       $comment Additional comment
+     * @param bool $local
+     * @param string $comment Additional comment
      */
     public function markForReview($recordId, $fieldsForReview, $comment = null, $local = true)
     {
-        if ( ! is_array($fieldsForReview)) {
+        if (!is_array($fieldsForReview)) {
             $fieldsForReview = [$fieldsForReview];
         }
         $this->markedForReview[$recordId][] = [
@@ -1212,17 +1234,18 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         }
         $collection = collect($this->markedForReview);
 
-        $oldTable = $this->oldTable.'_reviews';
-        $hasRemoteTable = Schema::connection($this->getOldDbConnection())->hasTable($oldTable);
+        $oldTable = $this->oldTable . '_reviews';
+        $hasRemoteTable = Schema::connection($this->getOldDbConnection())
+                                ->hasTable($oldTable);
 
-        $newTable = $this->newTable.'_reviews';
+        $newTable = $this->newTable . '_reviews';
         $hasLocalTable = Schema::hasTable($newTable);
 
         $hasLocal = false;
         $hasRemote = false;
 
         // Check if we have local or remote to create;
-        if ( ! $hasRemoteTable || ! $hasLocalTable) {
+        if (!$hasRemoteTable || !$hasLocalTable) {
             foreach ($collection as $item) {
                 foreach ($item as $values) {
                     if ($values['local'] === true) {
@@ -1238,12 +1261,14 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         }
 
         if ($hasRemote) {
-            Schema::connection($this->getOldDbConnection())->create($oldTable, function (Blueprint $table) {
-                $table->increments('id');
-                $table->unsignedInteger('review_id');
-                $table->text('review_fields');
-                $table->string('comment')->nullable();
-            });
+            Schema::connection($this->getOldDbConnection())
+                  ->create($oldTable, function (Blueprint $table) {
+                      $table->increments('id');
+                      $table->unsignedInteger('review_id');
+                      $table->text('review_fields');
+                      $table->string('comment')
+                            ->nullable();
+                  });
         }
 
         if ($hasLocal) {
@@ -1251,7 +1276,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 $table->increments('id');
                 $table->unsignedInteger('review_id');
                 $table->text('review_fields');
-                $table->string('comment')->nullable();
+                $table->string('comment')
+                      ->nullable();
             });
         }
 
@@ -1273,11 +1299,13 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             }
         }
 
-        if ( ! empty($newTableInserts)) {
-            $this->query($newTable)->insert($newTableInserts);
+        if (!empty($newTableInserts)) {
+            $this->query($newTable)
+                 ->insert($newTableInserts);
         }
-        if ( ! empty($oldTableInserts)) {
-            $this->oldQuery($oldTable)->insert($oldTableInserts);
+        if (!empty($oldTableInserts)) {
+            $this->oldQuery($oldTable)
+                 ->insert($oldTableInserts);
         }
     }
 
@@ -1299,7 +1327,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             // Since every insert gets treated like a batch insert, we will make sure the
             // bindings are structured in a way that is convenient for building these
             // inserts statements by verifying the elements are actually an array.
-            if ( ! is_array(reset($values))) {
+            if (!is_array(reset($values))) {
                 $values = [$values];
             }
 
@@ -1339,9 +1367,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             // is the same type of result returned by the raw connection instance.
             $bindings = $this->cleanBindings($bindings);
 
-            return $query->getConnection()->insert($sql, $bindings);
+            return $query->getConnection()
+                         ->insert($sql, $bindings);
         } else {
-            return $this->query()->insert($values);
+            return $this->query()
+                        ->insert($values);
         }
     }
 
@@ -1353,7 +1383,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected function cleanBindings(array $bindings)
     {
         return array_values(array_filter($bindings, function ($binding) {
-            return ! $binding instanceof Expression;
+            return !$binding instanceof Expression;
         }));
     }
 }
