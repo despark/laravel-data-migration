@@ -35,12 +35,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     const IMAGE = '_IMAGE_';
 
     /**
-     * @var array
+     * @var string
      */
     protected $newTable;
 
     /**
-     * @var array
+     * @var string
      */
     protected $oldTable;
 
@@ -1386,4 +1386,34 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             return !$binding instanceof Expression;
         }));
     }
+
+    /**
+     * @return array
+     */
+    public function getMap(): array
+    {
+        return $this->map;
+    }
+
+    /**
+     * @param array $map
+     *
+     * @return Migration
+     */
+    public function setMap(array $map)
+    {
+        $this->map = $map;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getOldId(): string
+    {
+        return $this->oldId;
+    }
+
+
 }
