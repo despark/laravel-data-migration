@@ -771,13 +771,14 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                                     ' or problem with the query. Error: ' . $exc->getMessage());
                             }
 
-                            // We have null or zero value in the old table.
-                            if (property_exists($item, $oldKey) && (is_null($item->$oldKey) || $item->$oldKey == 0)) {
-                                // Give implementations chance to act and change the relation
+                            // We have null value in the old table.
+                            if (property_exists($item, $oldKey) && (is_null($item->$oldKey) || $item->$oldKey === 0)) {
                                 // If we allow null values.
                                 // We need to convert the null key to null string to keep it in the array.
-                                $item->$oldKey = 'null';
-                                $value = null;
+
+                                    $item->$oldKey = 'null';
+                                    $value = null;
+
                             }
 
                             $this->foundRelations[$item->$oldId][$table][$item->$oldKey] = $value;
