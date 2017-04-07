@@ -231,6 +231,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     public $withProgressBar = true;
 
     /**
+     * @var array
+     */
+    protected $nullableRelationColumns = [];
+
+    /**
      * @return Builder
      */
     abstract protected function readQuery();
@@ -488,15 +493,20 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                     try {
                         $insert[$key][$relation['foreign']] = $this->findRelationKeyValue($item, $table, $relation);
                     } catch (MigrationException $exc) {
-                        // If we are not in strict mode, log error and allow import without broken relations.
-                        if (!$this->strictMode) {
-                            if (!isset($this->failedRecords[$item->{$this->oldId}])) {
-                                $this->failedRecords[$item->{$this->oldId}] = $item;
-                            }
-                            unset($insert[$key]);
-                            break 2;
+                        // We allow inserting migration as null if the column is in the nullable relation array.
+                        if ($this->isNullableRelationColumn($table, $relation['foreign'])) {
+                            $insert[$key][$relation['foreign']] = null;
                         } else {
-                            throw new \Exception($exc->getMessage());
+                            // If we are not in strict mode, log error and allow import without broken relations.
+                            if (!$this->strictMode) {
+                                if (!isset($this->failedRecords[$item->{$this->oldId}])) {
+                                    $this->failedRecords[$item->{$this->oldId}] = $item;
+                                }
+                                unset($insert[$key]);
+                                break 2;
+                            } else {
+                                throw new \Exception($exc->getMessage());
+                            }
                         }
                     }
                 }
@@ -761,14 +771,13 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                                     ' or problem with the query. Error: ' . $exc->getMessage());
                             }
 
-                            // We have null value in the old table.
-                            if (property_exists($item, $oldKey) && is_null($item->$oldKey)) {
+                            // We have null or zero value in the old table.
+                            if (property_exists($item, $oldKey) && (is_null($item->$oldKey) || $item->$oldKey == 0)) {
+                                // Give implementations chance to act and change the relation
                                 // If we allow null values.
                                 // We need to convert the null key to null string to keep it in the array.
-                                if (is_null($item->$oldKey)) {
-                                    $item->$oldKey = 'null';
-                                    $value = null;
-                                }
+                                $item->$oldKey = 'null';
+                                $value = null;
                             }
 
                             $this->foundRelations[$item->$oldId][$table][$item->$oldKey] = $value;
@@ -808,7 +817,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         } elseif ($this->force) {
             return null;
         } else {
-            throw new MigrationException('Foreign key value cannot be found for item with ID: ' . $item->$oldId . '. Review migration model ' . get_class($this));
+            throw new MigrationException('Foreign key value cannot be found for item with ID: ' . $item->$oldId .
+                ' and KEY: ' . $oldKey . '(' . $item->$oldKey . '). Review migration model ' . get_class($this));
         }
     }
 
@@ -1137,6 +1147,42 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     {
         return Config::get('database.connections.' . Config::get('database.default') . '.database');
     }
+
+    /**
+     * @return array
+     */
+    public function getNullableRelationColumns(): array
+    {
+        return $this->nullableRelationColumns;
+    }
+
+    /**
+     * @param array $nullableRelationColumns
+     *
+     * @return Migration
+     */
+    public function setNullableRelationColumns(array $nullableRelationColumns)
+    {
+        $this->nullableRelationColumns = $nullableRelationColumns;
+
+        return $this;
+    }
+
+    /**
+     * @param string $column
+     *
+     * @return bool
+     */
+    public function isNullableRelationColumn(string $table, string $column): bool
+    {
+        $nullableColumns = $this->getNullableRelationColumns();
+        if (array_key_exists($table, $nullableColumns)) {
+            return in_array($column, $nullableColumns[$table]);
+        }
+
+        return false;
+    }
+
 
     /**
      * Sets max chunks possible for sql prepared statements.
