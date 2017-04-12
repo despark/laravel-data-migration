@@ -18,7 +18,11 @@ class Migrate extends Command
      *
      * @var string
      */
-    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} {values?* : any custom data to pass to the migration "key=value"} {--no-progress : No progress bar}';
+    protected $signature = 'migrations:migrate {--m|migration=* : Migration names} ' .
+    '{values?* : any custom data to pass to the migration "key=value"} ' .
+    '{--no-progress : No progress bar} ' .
+    '{--t|test}';
+
 
     /**
      * The console command description.
@@ -72,6 +76,10 @@ class Migrate extends Command
 
         foreach ($migrationsData as $name => $migrationClass) {
             $migrationInstance = $this->manager->getMigrationInstance($name);
+
+            if ($migrationInstance instanceof Migration) {
+                $migrationInstance->setTestMode((bool)$this->option('test'));
+            }
 
             $this->info(PHP_EOL .
                 '***' . PHP_EOL .

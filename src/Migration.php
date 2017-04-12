@@ -172,6 +172,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected $strictMode = true;
 
     /**
+     * In test mode the migration will delete any records in receiving database.
+     * @var bool
+     */
+    public $testMode = false;
+
+    /**
      * If not in strict mode we collect faile records.
      *
      * @var array
@@ -622,10 +628,19 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         }
 
         $q->chunk($this->chunks, function ($items) use (&$data, $localOldId) {
+            $delete = [];
             foreach ($items as $item) {
+                // If in test mode we will delete some recored
                 if (isset($data[$item->$localOldId])) {
-                    unset($data[$item->$localOldId]);
+                    if ($this->testMode) {
+                        $delete[] = $item->$localOldId;
+                    } else {
+                        unset($data[$item->$localOldId]);
+                    }
                 }
+            }
+            if ($this->testMode && $delete) {
+                $this->query()->whereIn($localOldId, $delete);
             }
         });
     }
@@ -776,8 +791,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                                 // If we allow null values.
                                 // We need to convert the null key to null string to keep it in the array.
 
-                                    $item->$oldKey = 'null';
-                                    $value = null;
+                                $item->$oldKey = 'null';
+                                $value = null;
 
                             }
 
@@ -1028,8 +1043,9 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      * @param null $table
      *
      * @return array
+     * @throws \Despark\Migrations\Exceptions\MigrationException
      */
-    protected function getOldColumns($table = null)
+    protected function getOldColumns($table = null): array
     {
         if (is_null($table)) {
             $table = $this->oldTable;
@@ -1044,7 +1060,12 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                                               ->getColumnListing($table);
         }
 
-        return $this->oldColumns[$table] ?? null;
+        if (empty($this->oldColumns[$table])) {
+            throw new MigrationException('Cannot get columns for table ' . $table);
+        }
+
+
+        return $this->oldColumns[$table];
     }
 
     /**
@@ -1198,6 +1219,27 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         }
         $this->chunks = floor($this->maxPlaceholders / $numColumns);
     }
+
+    /**
+     * @return bool
+     */
+    public function isTestMode(): bool
+    {
+        return $this->testMode;
+    }
+
+    /**
+     * @param bool $testMode
+     *
+     * @return Migration
+     */
+    public function setTestMode(bool $testMode)
+    {
+        $this->testMode = $testMode;
+
+        return $this;
+    }
+
 
     /**
      * @param $data
