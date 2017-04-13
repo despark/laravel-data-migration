@@ -262,7 +262,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         });
 
         // Set default oldId.
-        if (!$this->oldId) {
+        if (!$this->getOldId()) {
             throw new MigrationException('You must specify old primary id in class ' . get_class($this));
         }
 
@@ -367,7 +367,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             foreach ($this->failedRecords as $record) {
                 $insertData[] = [
                     'migration'  => key($migration),
-                    'item_id'    => $record->{$this->oldId},
+                    'item_id'    => $record->{$this->getOldId()},
                     'item'       => json_encode((array)$record),
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -461,7 +461,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             // Check to see if we don't have explicitly set id for the new record.
             // This is useful to create master records of certain kind.
             // We also check if the new id and the old id are not the same label
-            if ($this->newId != $this->oldId) {
+            if ($this->newId != $this->getOldId()) {
                 if (isset($item->{$this->newId}) && $recurse) {
                     // Recurse to make just this insert.
                     $this->write([$item], false);
@@ -474,11 +474,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                     continue;
                 }
 
-                if (isset($item->{$this->newId}) && $this->newId != $this->oldId) {
+                if (isset($item->{$this->newId}) && $this->newId != $this->getOldId()) {
                     $insert[$key][$this->newId] = $item->{$this->newId};
                 }
 
-                if ($newColumn == $this->oldId) {
+                if ($newColumn == $this->getOldId()) {
                     // @todo wtf
                 }
                 if (property_exists($item, $oldColumn)) {
@@ -505,8 +505,8 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                         } else {
                             // If we are not in strict mode, log error and allow import without broken relations.
                             if (!$this->strictMode) {
-                                if (!isset($this->failedRecords[$item->{$this->oldId}])) {
-                                    $this->failedRecords[$item->{$this->oldId}] = $item;
+                                if (!isset($this->failedRecords[$item->{$this->getOldId()}])) {
+                                    $this->failedRecords[$item->{$this->getOldId()}] = $item;
                                 }
                                 unset($insert[$key]);
                                 break 2;
@@ -606,7 +606,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function excludeInserted(&$data)
     {
-        $oldId = $this->oldId;
+        $oldId = $this->getOldId();
         $localOldId = $this->localOldId;
 
         if (!isset($this->idBeforeMigration)) {
@@ -632,14 +632,14 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             foreach ($items as $item) {
                 // If in test mode we will delete some recored
                 if (isset($data[$item->$localOldId])) {
-                    if ($this->testMode) {
+                    if ($this->isTestMode()) {
                         $delete[] = $item->$localOldId;
                     } else {
                         unset($data[$item->$localOldId]);
                     }
                 }
             }
-            if ($this->testMode && $delete) {
+            if ($this->isTestMode() && $delete) {
                 $this->query()->whereIn($localOldId, $delete);
             }
         });
@@ -750,7 +750,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         //                    foreach ($relations as $relation) {
         //                        if ($constraint['table'] == $relations) {
         //                            foreach ($data as $item) {
-        //                                $this->foundRelations[$item->{$this->oldId}][$table] = $constraint['value'];
+        //                                $this->foundRelations[$item->{$this->getOldId()}][$table] = $constraint['value'];
         //                            }
         //                        }
         //
@@ -770,7 +770,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                         $oldForeign = $relation['old_foreign'];
 
                         $oldKey = $relation['old_key'];
-                        $oldId = $this->oldId;
+                        $oldId = $this->getOldId();
                         // Build array of of foreign keys.
                         if (!array_key_exists($item->$oldId, $this->foundRelations) ||
                             !array_key_exists($table, $this->foundRelations[$item->$oldId]) ||
@@ -817,7 +817,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     protected function findRelationKeyValue($item, $table, $relation)
     {
-        $oldId = $this->oldId;
+        $oldId = $this->getOldId();
         $oldKey = $relation['old_key'];
         // Check to see if we have found a relation
         if ((isset($this->foundRelations[$item->$oldId], $this->foundRelations[$item->$oldId][$table])) &&
@@ -971,9 +971,9 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected function buildMap()
     {
         // Add new and old ids if we use it
-        if ($this->saveOldId && $this->oldId && $this->localOldId) {
-            if (!array_key_exists($this->oldId, $this->map)) {
-                $this->map[$this->oldId] = $this->localOldId;
+        if ($this->saveOldId && $this->getOldId() && $this->localOldId) {
+            if (!array_key_exists($this->getOldId(), $this->map)) {
+                $this->map[$this->getOldId()] = $this->localOldId;
             }
         }
 
@@ -990,7 +990,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
         $pattern = '/_' . $this->oldTable . '|' . $this->oldTable . '_/';
         foreach ($columns as $column) {
             // We skip check for the id.
-            if ($column == $this->oldId) {
+            if ($column == $this->getOldId()) {
                 continue;
             }
             if (!array_key_exists($column, $this->map)) {
@@ -1093,7 +1093,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getOldIdAmbitious()
     {
-        return $this->oldTable . '.' . $this->oldId;
+        return $this->oldTable . '.' . $this->getOldId();
     }
 
     /**
