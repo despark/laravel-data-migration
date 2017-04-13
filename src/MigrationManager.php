@@ -81,7 +81,7 @@ class MigrationManager implements MigrationManagerContract
      */
     public function getMigrations()
     {
-        return array_flatten($this->migrations);
+        return array_dot($this->migrations);
     }
 
     /**
@@ -156,7 +156,6 @@ class MigrationManager implements MigrationManagerContract
             // We find the first key.
             if ($key === $name) {
                 if (is_array($class)) {
-                    dump($class);
                     return $class;
                 }
 
