@@ -123,7 +123,11 @@ trait HashesOldId
         foreach ($data as &$item) {
             $forHash = [];
             foreach ($this->getHashColumns() as $column) {
-                $forHash[] = $item->$column;
+                if (is_callable($column)) {
+                    $forHash[] = call_user_func($column);
+                } elseif (property_exists($item, $column)) {
+                    $forHash[] = $item->$column;
+                }
             }
             $item->hash = $this->hash($forHash);
         }
