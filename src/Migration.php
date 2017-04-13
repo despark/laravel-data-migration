@@ -107,6 +107,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * Relations on the old table.
+     * This will automatically join on the old table (still we need some way to choose the join type)
      *
      * @var array
      */
@@ -469,15 +470,18 @@ abstract class Migration implements MigrationContract, UsesProgressBar
                 }
             }
 
+            if (isset($item->{$this->newId}) && $this->newId != $this->getOldId()) {
+                $insert[$key][$this->newId] = $item->{$this->newId};
+            }
+
             foreach ($this->map as $oldColumn => $newColumn) {
                 if ($newColumn == self::IGNORE) {
                     continue;
                 }
-
-                if (isset($item->{$this->newId}) && $this->newId != $this->getOldId()) {
-                    $insert[$key][$this->newId] = $item->{$this->newId};
+                // We don't insert primary key in the loop.
+                if ($newColumn == $this->getNewId()) {
+                    continue;
                 }
-
                 if ($newColumn == $this->getOldId()) {
                     // @todo wtf
                 }

@@ -12,10 +12,14 @@ use Illuminate\Database\Schema\Blueprint;
 trait HashesOldId
 {
 
+    use WithHash;
+
     /**
+     * @param \stdClass $item
+     *
      * @return array
      */
-    abstract public function getHashColumns(): array;
+    abstract public function getHashColumns(\stdClass $item): array;
 
     /**
      * Prepare migration table
@@ -34,19 +38,6 @@ trait HashesOldId
             if (!$exists || $change) {
                 $this->createOldIdColumn($change);
             }
-            // if we have existing records we need to hash them
-            if ($change) {
-                $query = \DB::table($this->getNewTable())->whereNotNull($this->getLocalOldId());
-                $query->chunk(5000, function ($data) {
-                    $newIdKey = $this->getNewId();
-                    $localOldId = $this->getLocalOldId();
-                    foreach ($data as $item) {
-                        \DB::table($this->getNewTable())
-                           ->where($newIdKey, $item->$newIdKey)
-                           ->update([$localOldId => $this->hash($item->$localOldId)]);
-                    }
-                });
-            }
         }
     }
 
@@ -54,7 +45,7 @@ trait HashesOldId
     /**
      * @param bool $change
      */
-    private function createOldIdColumn($change = false)
+    protected function createOldIdColumn($change = false)
     {
         \Schema::table($this->getNewTable(), function (Blueprint $table) use ($change) {
             $newId = $this->getNewId();
@@ -89,10 +80,6 @@ trait HashesOldId
         $oldId = $this->getOldId();
         $localOldId = $this->localOldId;
 
-        //        if (! isset($this->idBeforeMigration)) {
-        //            $this->idBeforeMigration = $this->query()->max($this->newId);
-        //        }
-
         // Key data by id
         $newData = [];
         foreach ($data as $item) {
@@ -101,15 +88,24 @@ trait HashesOldId
         $data = $newData;
 
         // chunk the exclusion
-        $this->query()
-            // ->where($this->newId, '<=', $this->idBeforeMigration)
-             ->chunk($this->chunks, function ($items) use (&$data, $localOldId) {
-                foreach ($items as $item) {
-                    if (isset($data[$item->$localOldId])) {
+        $q = $this->query();
+
+        $q->chunk($this->chunks, function ($items) use (&$data, $localOldId) {
+            $delete = [];
+            foreach ($items as $item) {
+                // If in test mode we will delete some records
+                if (isset($data[$item->$localOldId])) {
+                    if ($this->testMode) {
+                        $delete[] = $item->$localOldId;
+                    } else {
                         unset($data[$item->$localOldId]);
                     }
                 }
-            });
+            }
+            if ($this->testMode && $delete) {
+                $this->query()->whereIn($localOldId, $delete)->delete();
+            }
+        });
     }
 
 
@@ -121,15 +117,7 @@ trait HashesOldId
     protected function beforeWrite(&$data)
     {
         foreach ($data as &$item) {
-            $forHash = [];
-            foreach ($this->getHashColumns() as $column) {
-                if (is_callable($column)) {
-                    $forHash[] = call_user_func($column);
-                } elseif (property_exists($item, $column)) {
-                    $forHash[] = $item->$column;
-                }
-            }
-            $item->hash = $this->hash($forHash);
+            $item->hash = $this->hash($this->getHashColumns($item));
         }
 
         return $this;
@@ -142,26 +130,4 @@ trait HashesOldId
     {
         return 'hash';
     }
-
-    /**
-     * @param $value
-     *
-     * @return string
-     */
-    public function hash($value)
-    {
-        if (is_string($value)) {
-            dd(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS));
-            $value = [$value];
-        } elseif (is_object($value)) {
-            $value = (array)$value;
-        }
-
-        if (is_array($value)) {
-            $value = json_encode($value);
-        }
-
-        return sha1($value);
-    }
-
 }
