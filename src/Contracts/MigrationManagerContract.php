@@ -24,7 +24,7 @@ interface MigrationManagerContract
     public function getMigrations();
 
     /**
-     * @return string
+     * @return string|array
      */
     public function getMigration($name);
 

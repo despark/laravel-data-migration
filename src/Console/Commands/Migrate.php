@@ -75,7 +75,7 @@ class Migrate extends Command
         $this->addCustomValues();
 
         foreach ($migrationsData as $name => $migrationClass) {
-            $migrationInstance = $this->manager->getMigrationInstance($name);
+            $migrationInstance = $this->manager->getMigrationInstance($migrationClass);
 
             if ($migrationInstance instanceof Migration) {
                 $migrationInstance->setTestMode((bool)$this->option('test'));

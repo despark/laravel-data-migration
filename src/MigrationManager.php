@@ -3,8 +3,10 @@
 
 namespace Despark\Migrations;
 
-use Despark\Migrations\Contracts\MigrationManagerContract;
 use Despark\Migrations\Contracts\MigrationContract;
+use Despark\Migrations\Contracts\MigrationManagerContract;
+use RecursiveArrayIterator;
+use RecursiveIteratorIterator;
 
 
 /**
@@ -37,19 +39,13 @@ class MigrationManager implements MigrationManagerContract
     /**
      * @param $name
      * @param $class
+     *
      * @return MigrationManagerContract
      * @throws \Exception
      */
     public function addMigration($name, $class): MigrationManagerContract
     {
-        if (! class_exists($class)) {
-            throw new \Exception('Migration class '.$class.' not found');
-        }
-
-        $implementations = class_implements($class);
-        if (! in_array(MigrationContract::class, $implementations)) {
-            throw new \Exception('Migration class '.$class.' must implement '.MigrationContract::class);
-        }
+        $this->validateMigrationClass($class);
 
         $this->migrations[$name] = $class;
 
@@ -57,34 +53,67 @@ class MigrationManager implements MigrationManagerContract
     }
 
     /**
+     * @param $class
+     *
+     * @throws \Exception
+     */
+    protected function validateMigrationClass($class)
+    {
+        if (is_array($class)) {
+            foreach ($class as $actualClass) {
+                $this->validateMigrationClass($actualClass);
+            }
+
+            return;
+        }
+        if (!class_exists($class)) {
+            throw new \Exception('Migration class ' . $class . ' not found');
+        }
+
+        $implementations = class_implements($class);
+        if (!in_array(MigrationContract::class, $implementations)) {
+            throw new \Exception('Migration class ' . $class . ' must implement ' . MigrationContract::class);
+        }
+    }
+
+    /**
      * @return array
      */
     public function getMigrations()
+    {
+        return array_flatten($this->migrations);
+    }
+
+    /**
+     * @return array
+     */
+    public function getRawMigrations()
     {
         return $this->migrations;
     }
 
     /**
-     * @return string
+     * @return string|array
      */
     public function getMigration($name)
     {
+
         return isset($this->migrations[$name]) ? $this->migrations[$name] : null;
     }
 
     /**
-     * @param $name
+     * @param string $name
+     *
      * @return MigrationContract
      */
-    public function getMigrationInstance($name)
+    public function getMigrationInstance($class)
     {
-        $migrationClass = $this->getMigration($name);
-
-        return app($migrationClass);
+        return app($class);
     }
 
     /**
      * @param $class
+     *
      * @return array
      */
     public function findMigrationByClass($class)
@@ -100,21 +129,39 @@ class MigrationManager implements MigrationManagerContract
 
     /**
      * @param $name
-     * @return mixed|null
+     *
+     * @return array|string
      */
     public function findMigrationByName($name)
     {
         if (is_array($name)) {
+            $name = array_unique($name);
             $migrations = [];
-            foreach ($name as $n) {
-                if (isset($this->getMigrations()[$n])) {
-                    $migrations[$n] = $this->getMigrations()[$n];
+            foreach ($name as $actualName) {
+                $migration = $this->findMigrationByName($actualName);
+                if ($migration) {
+                    $migrations = array_merge($migrations, $migration);
                 }
             }
 
-            return $migrations;
-        } else {
-            return isset($this->getMigrations()[$name]) ? $this->getMigrations()[$name] : null;
+            return $migrations ?? null;
+        }
+
+        $iterator = new RecursiveArrayIterator($this->migrations);
+        $recursive = new RecursiveIteratorIterator(
+            $iterator,
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ($recursive as $key => $class) {
+            // We find the first key.
+            if ($key === $name) {
+                if (is_array($class)) {
+                    dump($class);
+                    return $class;
+                }
+
+                return [$key => $class];
+            }
         }
     }
 
@@ -125,8 +172,8 @@ class MigrationManager implements MigrationManagerContract
      */
     public function addGlobalConstraint($table, $field, $value)
     {
-        $key = $table.'.'.$field;
-        if (! in_array($key, $this->globalConstraint)) {
+        $key = $table . '.' . $field;
+        if (!in_array($key, $this->globalConstraint)) {
 
             $this->globalConstraint[$key] = [
                 'table' => $table,
@@ -153,9 +200,9 @@ class MigrationManager implements MigrationManagerContract
                 $model = new $migration($this);
                 if ($model->getOldTable() == $table) {
                     return [
-                        'field' => $model->map($field),
-                        'value' => $value,
-                        'table' => $model->getNewTable(),
+                        'field'       => $model->map($field),
+                        'value'       => $value,
+                        'table'       => $model->getNewTable(),
                         'primary_key' => $model->getNewId(),
                     ];
                 }
@@ -174,6 +221,7 @@ class MigrationManager implements MigrationManagerContract
     /**
      * @param $key
      * @param $value
+     *
      * @return mixed|void
      */
     public function addGlobalValue($key, $value)
@@ -184,6 +232,7 @@ class MigrationManager implements MigrationManagerContract
     /**
      * @param      $key
      * @param null $default
+     *
      * @return mixed
      */
     public function getGlobalValue($key, $default = null)
@@ -209,6 +258,7 @@ class MigrationManager implements MigrationManagerContract
 
     /**
      * @param string $databaseConnection
+     *
      * @return MigrationManagerContract
      */
     public function setDatabaseConnection(string $databaseConnection): MigrationManagerContract
