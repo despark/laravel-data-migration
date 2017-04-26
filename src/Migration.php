@@ -1055,7 +1055,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
             $table = $this->oldTable;
         }
         $connection = DB::connection($this->getOldDbConnection());
-        $dbExists = DB::select('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?',
+        $dbExists = $connection->select('SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?',
             [$connection->getDatabaseName(),]
         );
 
