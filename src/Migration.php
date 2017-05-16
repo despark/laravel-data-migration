@@ -243,6 +243,11 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     protected $nullableRelationColumns = [];
 
     /**
+     * @var boolean
+     */
+    protected $setupDone = false;
+
+    /**
      * @return Builder
      */
     abstract protected function readQuery();
@@ -268,18 +273,30 @@ abstract class Migration implements MigrationContract, UsesProgressBar
 
     /**
      * Setup method
+     * @return $this
      */
     public function setup()
     {
-        $this->maxPacketSize = \Cache::remember('mysql_max_allowed_packet_size', 24 * 60, function () {
-            return DB::select('SELECT @@max_allowed_packet as value')[0]->value;
-        });
+        if (!$this->setupDone) {
 
-        $this->setMaxChunks();
+            $this->beforeSetup();
 
-        $this->prepareRelations();
+            $this->maxPacketSize = \Cache::remember('mysql_max_allowed_packet_size', 24 * 60, function () {
+                return DB::select('SELECT @@max_allowed_packet as value')[0]->value;
+            });
 
-        $this->buildMap();
+            $this->setMaxChunks();
+
+            $this->prepareRelations();
+
+            $this->buildMap();
+
+            $this->afterSetup();
+
+            $this->setupDone = true;
+        }
+
+        return $this;
     }
 
     /**
@@ -866,9 +883,10 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function getRecordsCount(): int
     {
+        $this->setup();
         $this->applyConstraints();
 
-        return $this->getReadQuery()
+        return $this->readQuery()
                     ->count();
     }
 
@@ -1513,6 +1531,22 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     public function getOldId(): string
     {
         return $this->oldId;
+    }
+
+    /**
+     * Before the class is setup
+     */
+    protected function beforeSetup()
+    {
+        return $this;
+    }
+
+    /**
+     * After the class is setup
+     */
+    protected function afterSetup()
+    {
+        return $this;
     }
 
 
