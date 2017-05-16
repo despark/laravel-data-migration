@@ -258,16 +258,22 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     {
         $this->manager = $manager;
 
-        $this->maxPacketSize = \Cache::remember('mysql_max_allowed_packet_size', 24 * 60, function () {
-            return DB::select('SELECT @@max_allowed_packet as value')[0]->value;
-        });
-
         // Set default oldId.
         if (!$this->getOldId()) {
             throw new MigrationException('You must specify old primary id in class ' . get_class($this));
         }
 
         $this->origMap = $this->map;
+    }
+
+    /**
+     * Setup method
+     */
+    public function setup()
+    {
+        $this->maxPacketSize = \Cache::remember('mysql_max_allowed_packet_size', 24 * 60, function () {
+            return DB::select('SELECT @@max_allowed_packet as value')[0]->value;
+        });
 
         $this->setMaxChunks();
 
@@ -281,6 +287,7 @@ abstract class Migration implements MigrationContract, UsesProgressBar
      */
     public function migrate()
     {
+        $this->setup();
         //Prepare new table. This needs do be first as we need to create fields before checking the integrity.
         $this->prepareTable();
 
@@ -1135,17 +1142,17 @@ abstract class Migration implements MigrationContract, UsesProgressBar
     }
 
     /**
-     * @return array
+     * @return string
      */
-    public function getNewTable()
+    public function getNewTable(): string
     {
         return $this->newTable;
     }
 
     /**
-     * @return array
+     * @return string
      */
-    public function getOldTable()
+    public function getOldTable(): string
     {
         return $this->oldTable;
     }
